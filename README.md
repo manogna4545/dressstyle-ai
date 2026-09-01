@@ -1,6 +1,6 @@
 # 👗 DressStyle AI
 
-//Live Demo : https://dressstyle-ai-kc4uhg6miccojnsscygsrz.streamlit.app/
+Live Demo : https://dressstyle-ai-kc4uhg6miccojnsscygsrz.streamlit.app/
 
 DressStyle AI is an AI-powered fashion recommendation and dress styling application built using Python and Streamlit.
 
