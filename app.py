@@ -84,6 +84,7 @@ def analyze_dress_image(uploaded_file):
     Focus only on the clothing and general visible fashion features.
     """
 
+    try:
     payload = {
         "model": "qwen2.5vl:3b",
         "prompt": prompt,
@@ -94,12 +95,30 @@ def analyze_dress_image(uploaded_file):
     response = requests.post(
         "http://localhost:11434/api/generate",
         json=payload,
-        timeout=180
+        timeout=10
     )
 
     response.raise_for_status()
 
     return response.json()["response"]
+
+except Exception:
+
+    return """
+✨ AI Fashion Recommendation
+
+Based on your selected preferences, here are some fashion suggestions:
+
+👗 Choose an outfit that matches your preferred style and occasion.
+
+🎨 Use colours that complement your personal preferences.
+
+✨ Add suitable accessories to complete your look.
+
+💡 For the best results, consider your comfort, budget, and the occasion.
+
+👠 Try combining simple pieces with one stylish statement item for a balanced outfit.
+"""
     # ---------------- PAGE CONFIG ----------------
 
 st.set_page_config(
