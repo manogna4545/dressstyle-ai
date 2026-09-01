@@ -1,4 +1,5 @@
 streamlit
-pillow
+Pillow
 requests
 python-dotenv
+gradio_client
