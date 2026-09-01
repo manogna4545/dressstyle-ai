@@ -65,4 +65,4 @@ git clone https://github.com/manogna4545/dressstyle-ai.git
 
 🚀 **Try DressStyle AI here:**
 
-https://dressstyle-ai-kc4uhg6miccojnsscygsrz.streamlit.app/
+https: https://dressstyle-ai-kc4uhg6miccojnsscygsrz.streamlit.app/
