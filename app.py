@@ -6,7 +6,8 @@ import base64
 import os
 from pathlib import Path
 from dotenv import load_dotenv
-import fal_client
+
+from gradio_client import Client, handle_file
 
 # ==================================================
 # LOAD ENVIRONMENT VARIABLES
@@ -21,9 +22,8 @@ OLLAMA_URL = os.getenv(
     "http://localhost:11434/api/generate"
 )
 
-FAL_KEY = os.getenv("FAL_KEY", "")
-
 WISHLIST_FILE = BASE_DIR / "wishlist.json"
+
 
 
 # ==================================================
@@ -717,7 +717,6 @@ comfort, style and shopping preferences.
                         f"Something went wrong: {e}"
                     )
 
-
 # ==================================================
 # VIRTUAL TRY-ON
 # ==================================================
@@ -746,7 +745,7 @@ elif page == "📸 Virtual Try-On":
             st.image(
                 user_photo,
                 caption="Your Photo",
-                use_container_width=True
+                width="stretch"
             )
 
     with col2:
@@ -762,28 +761,19 @@ elif page == "📸 Virtual Try-On":
             st.image(
                 dress_photo,
                 caption="Dress Photo",
-                use_container_width=True
+                width="stretch"
             )
+
 
     if st.button(
         "✨ Generate Virtual Try-On",
-        use_container_width=True
+        width="stretch"
     ):
 
         if not user_photo or not dress_photo:
 
             st.warning(
-                "Please upload both your photo and the dress photo."
-            )
-
-        elif not FAL_KEY:
-
-            st.error(
-                "⚠️ FAL API key is not configured."
-            )
-
-            st.info(
-                "Please add FAL_KEY to your .env file."
+                "⚠️ Please upload both your photo and the dress photo."
             )
 
         else:
@@ -792,39 +782,84 @@ elif page == "📸 Virtual Try-On":
                 "🤖 Creating your virtual try-on image... Please wait."
             ):
 
+                user_image_path = None
+                dress_image_path = None
+
                 try:
 
-                    # Save uploaded images temporarily
-                    user_image_path = "temp_user_image.png"
-                    dress_image_path = "temp_dress_image.png"
+                    # ==========================================
+                    # SAVE UPLOADED FILES TEMPORARILY
+                    # ==========================================
+
+                    user_image_path = BASE_DIR / "temp_user_image.jpg"
+
+                    dress_image_path = BASE_DIR / "temp_dress_image.jpg"
+
 
                     with open(user_image_path, "wb") as f:
-                        f.write(user_photo.getbuffer())
+                        f.write(user_photo.getvalue())
+
 
                     with open(dress_image_path, "wb") as f:
-                        f.write(dress_photo.getbuffer())
+                        f.write(dress_photo.getvalue())
 
-                    # Upload user image to fal.ai
-                    user_image_url = fal_client.upload_file(
-                        user_image_path
+
+                    # ==========================================
+                    # CONNECT TO IDM-VTON
+                    # ==========================================
+
+                    client = Client(
+                        "yisol/IDM-VTON"
                     )
 
-                    # Upload dress image to fal.ai
-                    dress_image_url = fal_client.upload_file(
-                        dress_image_path
+
+                    # ==========================================
+                    # GENERATE VIRTUAL TRY-ON
+                    # ==========================================
+
+                    result = client.predict(
+                        dict={
+                            "background": handle_file(
+                                str(user_image_path)
+                            ),
+                            "layers": [],
+                            "composite": None
+                        },
+
+                        garm_img=handle_file(
+                            str(dress_image_path)
+                        ),
+
+                        garment_des="A dress",
+
+                        is_checked=True,
+
+                        is_checked_crop=False,
+
+                        denoise_steps=30,
+
+                        seed=42,
+
+                        api_name="/tryon"
                     )
 
-                    # Run fal.ai Virtual Try-On model
-                    result = fal_client.subscribe(
-                        "fal-ai/image-apps-v2/virtual-try-on",
-                        arguments={
-                            "human_image_url": user_image_url,
-                            "garment_image_url": dress_image_url
-                        }
-                    )
 
-                    # Get generated image URL
-                    result_image_url = result["image"]["url"]
+                    # ==========================================
+                    # GET GENERATED IMAGE FROM RESULT
+                    # ==========================================
+
+                    if isinstance(result, (list, tuple)):
+
+                        result_image = result[0]
+
+                    else:
+
+                        result_image = result
+
+
+                    # ==========================================
+                    # DISPLAY RESULT
+                    # ==========================================
 
                     st.success(
                         "✨ Virtual Try-On Complete!"
@@ -835,35 +870,40 @@ elif page == "📸 Virtual Try-On":
                     )
 
                     st.image(
-                        result_image_url,
-                        use_container_width=True
+                        result_image,
+                        caption="Your Virtual Try-On Result",
+                        width="stretch"
                     )
 
-                    st.link_button(
-                        "🖼️ Open Result Image",
-                        result_image_url,
-                        use_container_width=True
-                    )
 
                 except Exception as e:
 
                     st.error(
-                        f"Virtual Try-On Error: {e}"
+                        "⚠️ Virtual Try-On Error"
                     )
 
-                    st.info(
-                        "Please check your FAL_KEY and "
-                        "make sure your uploaded images are clear."
-                    )
+                    st.exception(e)
+
 
                 finally:
 
-                    # Remove temporary files
-                    if os.path.exists("temp_user_image.png"):
-                        os.remove("temp_user_image.png")
+                    # ==========================================
+                    # DELETE TEMPORARY FILES
+                    # ==========================================
 
-                    if os.path.exists("temp_dress_image.png"):
-                        os.remove("temp_dress_image.png")
+                    if (
+                        user_image_path
+                        and user_image_path.exists()
+                    ):
+                        user_image_path.unlink()
+
+
+                    if (
+                        dress_image_path
+                        and dress_image_path.exists()
+                    ):
+                        dress_image_path.unlink()
+
 # ==================================================
 # DRESS SEARCH
 # ==================================================
