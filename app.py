@@ -6,7 +6,7 @@ import base64
 import os
 from pathlib import Path
 from dotenv import load_dotenv
-
+import fal_client
 
 # ==================================================
 # LOAD ENVIRONMENT VARIABLES
@@ -21,9 +21,7 @@ OLLAMA_URL = os.getenv(
     "http://localhost:11434/api/generate"
 )
 
-TRYON_API_KEY = os.getenv("TRYON_API_KEY", "")
-
-TRYON_API_URL = os.getenv("TRYON_API_URL", "")
+FAL_KEY = os.getenv("FAL_KEY", "")
 
 WISHLIST_FILE = BASE_DIR / "wishlist.json"
 
@@ -729,8 +727,8 @@ elif page == "📸 Virtual Try-On":
     st.title("📸 AI Virtual Try-On")
 
     st.write(
-        "Upload your photo and a dress photo "
-        "to create an AI-powered virtual try-on."
+        "Upload your photo and a dress photo to create "
+        "an AI-powered virtual try-on."
     )
 
     col1, col2 = st.columns(2)
@@ -738,52 +736,34 @@ elif page == "📸 Virtual Try-On":
     with col1:
 
         user_photo = st.file_uploader(
-
             "👤 Upload Your Photo",
-
             type=["jpg", "jpeg", "png"],
-
             key="tryon_user_photo"
-
         )
 
         if user_photo:
 
             st.image(
-
                 user_photo,
-
                 caption="Your Photo",
-
                 use_container_width=True
-
             )
-
 
     with col2:
 
         dress_photo = st.file_uploader(
-
             "👗 Upload Dress Photo",
-
             type=["jpg", "jpeg", "png"],
-
             key="tryon_dress_photo"
-
         )
 
         if dress_photo:
 
             st.image(
-
                 dress_photo,
-
                 caption="Dress Photo",
-
                 use_container_width=True
-
             )
-
 
     if st.button(
         "✨ Generate Virtual Try-On",
@@ -793,81 +773,58 @@ elif page == "📸 Virtual Try-On":
         if not user_photo or not dress_photo:
 
             st.warning(
-                "Please upload both your photo "
-                "and the dress photo."
+                "Please upload both your photo and the dress photo."
             )
 
-        elif not TRYON_API_KEY:
+        elif not FAL_KEY:
 
             st.error(
-                "⚠️ Try-On API key is not configured."
+                "⚠️ FAL API key is not configured."
             )
 
             st.info(
-                "Add TRYON_API_KEY to your .env file."
-            )
-
-        elif not TRYON_API_URL:
-
-            st.error(
-                "⚠️ Try-On API URL is not configured."
-            )
-
-            st.info(
-                "Add TRYON_API_URL to your .env file."
+                "Please add FAL_KEY to your .env file."
             )
 
         else:
 
             with st.spinner(
-                "🤖 Creating your virtual try-on image..."
+                "🤖 Creating your virtual try-on image... Please wait."
             ):
 
                 try:
 
-                    headers = {
+                    # Save uploaded images temporarily
+                    user_image_path = "temp_user_image.png"
+                    dress_image_path = "temp_dress_image.png"
 
-                        "X-API-KEY": TRYON_API_KEY
+                    with open(user_image_path, "wb") as f:
+                        f.write(user_photo.getbuffer())
 
-                    }
+                    with open(dress_image_path, "wb") as f:
+                        f.write(dress_photo.getbuffer())
 
-                    files = {
-
-                        "garment_image": (
-
-                            dress_photo.name,
-
-                            dress_photo.getvalue(),
-
-                            dress_photo.type
-
-                        ),
-
-                        "person_image": (
-
-                            user_photo.name,
-
-                            user_photo.getvalue(),
-
-                            user_photo.type
-
-                        )
-
-                    }
-
-                    response = requests.post(
-
-                        TRYON_API_URL,
-
-                        headers=headers,
-
-                        files=files,
-
-                        timeout=180
-
+                    # Upload user image to fal.ai
+                    user_image_url = fal_client.upload_file(
+                        user_image_path
                     )
 
-                    response.raise_for_status()
+                    # Upload dress image to fal.ai
+                    dress_image_url = fal_client.upload_file(
+                        dress_image_path
+                    )
+
+                    # Run fal.ai Virtual Try-On model
+                    result = fal_client.subscribe(
+                        "fal-ai/image-apps-v2/virtual-try-on",
+                        arguments={
+                            "human_image_url": user_image_url,
+                            "garment_image_url": dress_image_url
+                        }
+                    )
+
+                    # Get generated image URL
+                    result_image_url = result["image"]["url"]
 
                     st.success(
                         "✨ Virtual Try-On Complete!"
@@ -878,42 +835,35 @@ elif page == "📸 Virtual Try-On":
                     )
 
                     st.image(
-                        response.content,
+                        result_image_url,
                         use_container_width=True
                     )
 
-                    st.download_button(
-
-                        label="⬇️ Download Try-On Image",
-
-                        data=response.content,
-
-                        file_name="virtual_tryon_result.png",
-
-                        mime="image/png"
-
-                    )
-
-                except requests.exceptions.Timeout:
-
-                    st.error(
-                        "The virtual try-on took too long. "
-                        "Please try again."
-                    )
-
-                except requests.exceptions.RequestException as e:
-
-                    st.error(
-                        f"Virtual Try-On connection error: {e}"
+                    st.link_button(
+                        "🖼️ Open Result Image",
+                        result_image_url,
+                        use_container_width=True
                     )
 
                 except Exception as e:
 
                     st.error(
-                        f"Something went wrong: {e}"
+                        f"Virtual Try-On Error: {e}"
                     )
 
+                    st.info(
+                        "Please check your FAL_KEY and "
+                        "make sure your uploaded images are clear."
+                    )
 
+                finally:
+
+                    # Remove temporary files
+                    if os.path.exists("temp_user_image.png"):
+                        os.remove("temp_user_image.png")
+
+                    if os.path.exists("temp_dress_image.png"):
+                        os.remove("temp_dress_image.png")
 # ==================================================
 # DRESS SEARCH
 # ==================================================
